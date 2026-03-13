@@ -1,6 +1,5 @@
-# 🤖 捕获月球大模型合成数据平台-公众号：正经人王同学
-### 捕获月球大模型合成数据平台：致力于打造低成本的人人都懂用的多模态合成数据解决方案助力各类大模型的预训练、微调、gpto1(cot)、function calling等训练场景,欢迎加入我们或与我们合作！
 
+### 捕获月球大模型合成数据平台：致力于打造低成本的人人都懂用的多模态合成数据解决方案
 在线体验地址：https://sft-data-builder.vercel.app
 演示视频：[https://www.bilibili.com/video/BV1dvDQYBEew/?spm_id_from=333.999.0.0](https://www.bilibili.com/video/BV19qD6YqEJ2/?spm_id_from=333.999.0.0)
 
@@ -145,7 +144,6 @@ json
 正经人王同学
 
 - 微信公众号：正经人王同学
-- 微信:whatisallineed
 - GitHub：[https://github.com/zjrwtx](https://github.com/zjrwtx)
 - Email：[3038880699@qq.com](mailto:3038880699@qq.com)
 
