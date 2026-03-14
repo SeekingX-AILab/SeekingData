@@ -1,4 +1,4 @@
-# SeekingData（under refactor！！！）
+# SeekingData
 
 <div align="center">
 
@@ -16,9 +16,15 @@
 
 ---
 
+> ⚠️ **Work in Progress**: This project is undergoing a complete refactor with 
+> many new features being added. It is not recommended for production use at 
+> this time. Please wait for a stable release.
+
+---
+
 ## Overview
 
-SeekingData Pro is a cross-platform desktop application that integrates SFT 
+SeekingData is a cross-platform desktop application that integrates SFT 
 (Supervised Fine-Tuning) data generation and Harbor task management, featuring 
 Material Design 3 for a modern user experience.
 

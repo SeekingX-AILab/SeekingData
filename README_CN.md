@@ -1,4 +1,4 @@
-# SeekingData Pro
+# SeekingData
 
 <div align="center">
 
@@ -13,6 +13,11 @@
 [English](README.md)
 
 </div>
+
+---
+
+> ⚠️ **开发中**：本项目正在进行完全重构，并添加大量新功能。目前不建议用于生产环境，
+> 请等待稳定版本发布后再使用。
 
 ---
 
