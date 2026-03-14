@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="seekingdata.png" alt="SeekingData" width="600" />
+
 **Professional SFT Data Generation & Harbor Task Management Platform**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
