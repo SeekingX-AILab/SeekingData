@@ -1,0 +1,29 @@
+# FastAPI and ASGI
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.1
+python-multipart>=0.0.17
+
+# Data validation
+pydantic>=2.10.0
+pydantic-settings>=2.6.1
+
+# HTTP client
+httpx>=0.28.1
+
+# OpenAI
+openai>=1.57.0
+
+# Camel AI framework
+camel-ai>=0.2.89
+
+# File processing
+pypdf>=5.1.0
+python-docx>=1.1.2
+beautifulsoup4>=4.12.3
+lxml>=5.3.0
+
+# Async utilities
+aiofiles>=24.1.0
+
+# Harbor framework (install from local)
+# pip install -e /Users/finnywang/codebase/harbor

@@ -1,0 +1,30 @@
+id = "github-task-20260314140411-20260314140411-8f3d3ced"
+name = "github-task-20260314140411"
+description = "Repository: microsoft/BitNet"
+status = "draft"
+created_at = "2026-03-14T14:04:11.846156"
+updated_at = "2026-03-14T14:04:11.846156"
+
+[task_config]
+name = "microsoft/BitNet"
+description = "Repository: microsoft/BitNet"
+difficulty = 5
+tags = [ "github", "auto-generated",]
+timeout = 3600
+
+[environment_config]
+environment_type = [ "d", "o", "c", "k", "e", "r",]
+base_image = "python:3.12-slim"
+setup_commands = []
+required_ports = []
+
+[agent_config]
+agent_type = "claude-code"
+model = "claude-sonnet-4-20250514"
+max_tokens = 16000
+temperature = 0.7
+
+[verifier_config]
+test_commands = [ "pytest tests/ -v", "python -m pytest --cov=src", "black --check .", "ruff check .",]
+success_criteria = []
+timeout = 300

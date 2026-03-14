@@ -1,3 +1,126 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --primary-color: #2196f3;
+  --secondary-color: #9c27b0;
+  --surface-color: #ffffff;
+  --background-color: #fafafa;
+  --error-color: #b3261e;
+  --success-color: #2e7d32;
+  --on-primary: #ffffff;
+  --on-secondary: #ffffff;
+  --on-surface: #1c1b1f;
+  --on-background: #1c1b1f;
+  --on-error: #ffffff;
+  --outline: #79747e;
+  --outline-variant: #cac4d0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
+  background-color: var(--background-color);
+  color: var(--on-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+@layer components {
+  .material-card {
+    @apply bg-surface rounded-lg shadow-elevation-1 transition-all duration-200;
+  }
+
+  .material-card:hover {
+    @apply shadow-elevation-2;
+  }
+
+  .material-button {
+    @apply relative overflow-hidden px-6 py-2.5 rounded-full font-medium transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+
+  .material-button::after {
+    content: '';
+    @apply absolute inset-0 bg-white opacity-0 transition-opacity duration-200;
+  }
+
+  .material-button:hover::after {
+    @apply opacity-10;
+  }
+
+  .material-button:active::after {
+    @apply opacity-20;
+  }
+
+  .material-button-filled {
+    @apply material-button bg-primary-500 text-on-primary;
+  }
+
+  .material-button-outlined {
+    @apply material-button bg-transparent text-primary-500 border border-primary-500;
+  }
+
+  .material-button-text {
+    @apply material-button bg-transparent text-primary-500;
+  }
+
+  .material-input {
+    @apply w-full px-4 py-3 bg-surface-variant rounded-t-md border-b-2 border-outline;
+    @apply focus:outline-none focus:border-primary-500 transition-colors duration-200;
+    @apply placeholder:text-on-surface/50;
+  }
+
+  .material-chip {
+    @apply inline-flex items-center px-4 py-2 rounded-full text-sm font-medium;
+    @apply transition-all duration-200 cursor-pointer;
+  }
+
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background-color: currentColor;
+    opacity: 0.25;
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+  }
+}
+
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--outline);
+}
