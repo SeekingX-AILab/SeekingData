@@ -1,6 +1,6 @@
-appId: com.seekingdata.pro
-productName: SeekingData Pro
-copyright: Copyright © 2024 SeekingData Team
+appId: com.seekingdata.app
+productName: SeekingData
+copyright: Copyright © 2024 SeekingX-AILab
 
 directories:
   buildResources: resources

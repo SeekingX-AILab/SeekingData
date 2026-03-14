@@ -23,7 +23,7 @@
 
 ## 项目简介
 
-SeekingData Pro 是一个跨平台桌面应用程序，集成了 SFT（监督微调）数据生成和 
+SeekingData 是一个跨平台桌面应用程序，集成了 SFT（监督微调）数据生成和 
 Harbor 任务管理功能，采用 Material Design 3 设计语言，提供现代化的用户体验。
 
 ## 功能特性
@@ -143,7 +143,7 @@ OPENAI_API_KEY=sk-xxx
 GITHUB_TOKEN=ghp_xxx
 
 # 应用配置
-APP_NAME=SeekingData Pro
+APP_NAME=SeekingData
 APP_VERSION=0.1.0
 DEBUG=true
 ```

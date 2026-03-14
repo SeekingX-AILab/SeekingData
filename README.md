@@ -145,7 +145,7 @@ OPENAI_API_KEY=sk-xxx
 GITHUB_TOKEN=ghp_xxx
 
 # Application
-APP_NAME=SeekingData Pro
+APP_NAME=SeekingData
 APP_VERSION=0.1.0
 DEBUG=true
 ```

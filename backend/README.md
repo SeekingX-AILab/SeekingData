@@ -1,3 +1,3 @@
 # SeekingData Backend
 
-FastAPI backend for SeekingData Pro.
+FastAPI backend for SeekingData.

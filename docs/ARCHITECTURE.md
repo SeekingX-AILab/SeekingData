@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-SeekingData Pro is a desktop application built with Electron, React, and FastAPI.
+SeekingData is a desktop application built with Electron, React, and FastAPI.
 
 ### High-Level Architecture
 

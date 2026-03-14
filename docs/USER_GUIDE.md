@@ -1,6 +1,6 @@
 # User Guide
 
-Welcome to SeekingData Pro! This guide will help you get started with generating AI training data and Harbor evaluation tasks.
+Welcome to SeekingData! This guide will help you get started with generating AI training data and Harbor evaluation tasks.
 
 ## Installation
 
@@ -247,7 +247,7 @@ View application logs:
 
 ### Automatic Updates
 
-SeekingData Pro checks for updates automatically on launch.
+SeekingData checks for updates automatically on launch.
 
 ### Manual Update Check
 
@@ -279,7 +279,7 @@ The app makes network requests to:
 
 ### macOS
 
-1. Quit SeekingData Pro
+1. Quit SeekingData
 2. Drag from Applications to Trash
 3. Remove data (optional):
    ```bash

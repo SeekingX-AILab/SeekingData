@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     harbor_registry_url: Optional[str] = None
 
     # Application Settings
-    app_name: str = "SeekingData Pro"
+    app_name: str = "SeekingData"
     debug: bool = False
 
     class Config:

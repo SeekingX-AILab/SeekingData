@@ -1,4 +1,6 @@
-# SeekingData Pro - 快速开始指南
+# SeekingData - 快速开始指南
+
+> ⚠️ **开发中**：本项目正在进行完全重构，并添加大量新功能。目前不建议用于生产环境，请等待稳定版本发布后再使用。
 
 ## 🎯 项目状态
 
@@ -74,7 +76,7 @@ OPENAI_API_KEY=sk-xxx
 GITHUB_TOKEN=ghp_xxx
 
 # 应用配置
-APP_NAME=SeekingData Pro
+APP_NAME=SeekingData
 APP_VERSION=0.1.0
 DEBUG=true
 ```

@@ -94,7 +94,7 @@ export function Home() {
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-on-background mb-2">
-            Welcome to SeekingData Pro
+            Welcome to SeekingData
           </h1>
           <p className="text-on-surface/60">
             Generate AI training data and build Harbor evaluation tasks

@@ -1,6 +1,6 @@
 # API Documentation
 
-SeekingData Pro Backend API is built with FastAPI and provides RESTful endpoints for SFT data generation and Harbor task management.
+SeekingData Backend API is built with FastAPI and provides RESTful endpoints for SFT data generation and Harbor task management.
 
 ## Base URL
 

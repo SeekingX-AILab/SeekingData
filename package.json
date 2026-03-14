@@ -1,9 +1,9 @@
 {
   "name": "seekingdata",
   "version": "0.1.0",
-  "description": "SeekingData Pro - Enhanced SFT + Harbor Task Platform",
+  "description": "SeekingData - Enhanced SFT + Harbor Task Platform",
   "main": "dist-electron/main/index.js",
-  "author": "SeekingData Team",
+  "author": "SeekingX-AILab",
   "license": "MIT",
   "type": "module",
   "scripts": {

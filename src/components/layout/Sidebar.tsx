@@ -42,7 +42,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-surface border-r border-outline-variant h-full flex flex-col">
       <div className="p-4 border-b border-outline-variant">
         <h1 className="text-xl font-semibold text-primary-600">
-          SeekingData Pro
+          SeekingData
         </h1>
       </div>
 

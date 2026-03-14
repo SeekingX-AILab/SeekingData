@@ -4,7 +4,7 @@ This guide helps you migrate from the original SeekingData React app to the new 
 
 ## Overview
 
-The new SeekingData Pro is a complete rewrite with:
+The new SeekingData is a complete rewrite with:
 - **Desktop App**: Electron + Vite + React
 - **Backend**: FastAPI + Python
 - **UI**: Material Design 3

@@ -8,15 +8,15 @@ from config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Starting SeekingData Pro Backend...")
+    print("🚀 Starting SeekingData Backend...")
     print(f"📁 Tasks directory: {settings.tasks_dir}")
     print(f"🔑 LLM API configured: {'Yes' if settings.llm_api_key else 'No'}")
     yield
-    print("👋 Shutting down SeekingData Pro Backend...")
+    print("👋 Shutting down SeekingData Backend...")
 
 
 app = FastAPI(
-    title="SeekingData Pro",
+    title="SeekingData",
     description="SFT Data Generation + Harbor Task Management Platform",
     version="0.1.0",
     lifespan=lifespan,
@@ -38,7 +38,7 @@ app.include_router(harbor_router)
 @app.get("/")
 async def root():
     return {
-        "message": "SeekingData Pro API",
+        "message": "SeekingData API",
         "version": "0.1.0",
         "docs": "/docs",
     }
