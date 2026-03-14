@@ -13,6 +13,14 @@ interface DataItem {
   timestamp: number;
 }
 
+/** Progress state emitted by the SSE stream. */
+interface StreamProgress {
+  round: number;
+  totalRounds: number;
+  itemsSoFar: number;
+  target: number;
+}
+
 export function SingleProcessor() {
   const [activeTab, setActiveTab] = useState<'file' | 'url' | 'manual'>('file');
   const [url, setUrl] = useState('');
@@ -21,6 +29,7 @@ export function SingleProcessor() {
   const [suggestionsCount, setSuggestionsCount] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedData, setGeneratedData] = useState<DataItem[]>([]);
+  const [progress, setProgress] = useState<StreamProgress | null>(null);
 
   const handleFileUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,26 +72,109 @@ export function SingleProcessor() {
     }
   }, [url]);
 
+  /**
+   * Generate SFT data via SSE streaming endpoint.
+   *
+   * Reads the event stream line by line, updating
+   * progress and appending items as they arrive.
+   */
   const handleGenerate = useCallback(async () => {
     if (!content.trim() || !instruction.trim()) return;
 
     setIsGenerating(true);
+    setGeneratedData([]);
+    setProgress(null);
+
     try {
-      const response = await fetch('/api/sft/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content,
-          instruction,
-          suggestionsCount,
-        }),
-      });
-      const data = await response.json();
-      setGeneratedData(data.items);
+      const response = await fetch(
+        '/api/sft/generate-stream',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content,
+            instruction,
+            suggestions_count: suggestionsCount,
+          }),
+        }
+      );
+
+      if (!response.ok || !response.body) {
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText}`
+        );
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last incomplete line in the buffer
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+
+          try {
+            const event = JSON.parse(
+              trimmed.slice(6)
+            );
+
+            if (event.type === 'progress') {
+              setProgress({
+                round: event.round,
+                totalRounds: event.total_rounds,
+                itemsSoFar: event.items_so_far,
+                target: event.target,
+              });
+            } else if (event.type === 'items') {
+              setGeneratedData((prev) => [
+                ...prev,
+                ...event.new_items.map(
+                  (item: Record<string, string>) => ({
+                    id: crypto.randomUUID(),
+                    instruction: item.instruction || '',
+                    input: item.input || '',
+                    output: item.output || '',
+                    source: 'manual' as const,
+                    timestamp: Date.now(),
+                  })
+                ),
+              ]);
+            } else if (event.type === 'done') {
+              setGeneratedData(
+                event.items.map(
+                  (item: Record<string, string>) => ({
+                    id: item.id || crypto.randomUUID(),
+                    instruction: item.instruction || '',
+                    input: item.input || '',
+                    output: item.output || '',
+                    source: item.source || 'manual',
+                    timestamp: Date.now(),
+                  })
+                )
+              );
+              setProgress(null);
+            }
+          } catch {
+            // Skip malformed SSE lines
+          }
+        }
+      }
     } catch (error) {
       console.error('Generation failed:', error);
     } finally {
       setIsGenerating(false);
+      setProgress(null);
     }
   }, [content, instruction, suggestionsCount]);
 
@@ -219,6 +311,30 @@ export function SingleProcessor() {
                 >
                   生成训练数据
                 </Button>
+
+                {progress && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                      <span>
+                        生成中... 第 {progress.round}/{progress.totalRounds} 轮
+                      </span>
+                      <span>
+                        {progress.itemsSoFar}/{progress.target} 条
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            (progress.itemsSoFar / progress.target) * 100,
+                            100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Card>

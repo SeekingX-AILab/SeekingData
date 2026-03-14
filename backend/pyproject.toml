@@ -13,12 +13,11 @@ dependencies = [
     "python-multipart>=0.0.17",
     "litellm>=1.40.0",
     "httpx>=0.28.1",
-    "pypdf>=5.1.0",
-    "python-docx>=1.1.2",
-    "beautifulsoup4>=4.12.3",
-    "lxml>=5.3.0",
+    "docling>=2.0.0",
     "aiofiles>=24.1.0",
     "camel-ai>=0.2.89",
+    "toml>=0.10.2",
+    "harbor @ file:///Users/finnywang/codebase/harbor",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +32,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["api", "agents", "services", "models", "database"]

@@ -1,0 +1,46 @@
+Traceback (most recent call last):
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/harbor/trial/trial.py", line 481, in run
+    await self._setup_environment()
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/harbor/trial/trial.py", line 214, in _setup_environment
+    await self._start_environment_with_retry()
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py", line 193, in async_wrapped
+    return await copy(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py", line 112, in __call__
+    do = await self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py", line 157, in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/tenacity/_utils.py", line 111, in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/tenacity/__init__.py", line 393, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+                                     ^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py", line 116, in __call__
+    result = await fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/harbor/trial/trial.py", line 226, in _start_environment_with_retry
+    await asyncio.wait_for(
+  File "/Users/finnywang/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 259, in start
+    await self._run_docker_compose_command(["build"])
+  File "/Users/finnywang/codebase/SeekingData/backend/.venv/lib/python3.12/site-packages/harbor/environments/docker/docker.py", line 200, in _run_docker_compose_command
+    process = await asyncio.create_subprocess_exec(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/finnywang/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/subprocess.py", line 224, in create_subprocess_exec
+    transport, protocol = await loop.subprocess_exec(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 2841, in subprocess_exec
+  File "uvloop/loop.pyx", line 2799, in __subprocess_run
+  File "uvloop/handles/process.pyx", line 611, in uvloop.loop.UVProcessTransport.new
+  File "uvloop/handles/process.pyx", line 112, in uvloop.loop.UVProcess._init
+FileNotFoundError: [Errno 2] No such file or directory

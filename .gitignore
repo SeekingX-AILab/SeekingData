@@ -8,6 +8,7 @@ release/
 .env.local
 .env.*.local
 
+backend/config.json
 backend/.venv/
 backend/__pycache__/
 backend/**/*.pyc

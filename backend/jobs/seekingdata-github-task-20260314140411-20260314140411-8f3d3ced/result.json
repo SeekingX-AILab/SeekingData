@@ -1,0 +1,27 @@
+{
+    "id": "3e42f62a-23c1-4d63-90f2-751ade38a236",
+    "started_at": "2026-03-14T16:36:32.951454",
+    "finished_at": "2026-03-14T16:36:32.960492",
+    "n_total_trials": 1,
+    "stats": {
+        "n_trials": 1,
+        "n_errors": 1,
+        "evals": {
+            "claude-code__claude-sonnet-4-20250514__tasks": {
+                "n_trials": 0,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "reward_stats": {},
+                "exception_stats": {
+                    "FileNotFoundError": [
+                        "github-task-20260314140411-20260__JA3gAnB"
+                    ]
+                }
+            }
+        }
+    }
+}

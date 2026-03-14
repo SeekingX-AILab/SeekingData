@@ -2,87 +2,119 @@
 
 <div align="center">
 
-**专业的 SFT 数据生成与 Harbor 任务管理平台**
+**Professional SFT Data Generation & Harbor Task Management Platform**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![React 18](https://img.shields.io/badge/react-18-blue.svg)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/fastapi-0.115+-green.svg)](https://fastapi.tiangolo.com/)
+[![Electron](https://img.shields.io/badge/electron-33-blue.svg)](https://www.electronjs.org/)
 
-[English](#english) | [中文文档](#中文文档)
+[中文文档](README_CN.md)
 
 </div>
 
 ---
 
-## 中文文档
+## Overview
 
-### 🎯 项目简介
+SeekingData Pro is a cross-platform desktop application that integrates SFT 
+(Supervised Fine-Tuning) data generation and Harbor task management, featuring 
+Material Design 3 for a modern user experience.
 
-SeekingData Pro 是一个集成了 SFT 数据生成和 Harbor 任务管理的桌面应用程序，采用 Material Design 3 设计语言，提供现代化的用户体验。
+## Features
 
-### ✨ 核心特性
+### SFT Data Generation
 
-#### SFT 数据生成
+| Feature | Description |
+|---------|-------------|
+| Single Processing | File upload (PDF/DOCX/TXT), URL extraction, AI-powered generation |
+| Batch Processing | Bulk URL processing with real-time progress tracking |
+| Format Converter | Alpaca ↔ OpenAI bidirectional conversion |
+| CoT Generator | Chain of Thought reasoning data generation |
+| Image Dataset | Automatic image description generation |
+| Video Dataset | Video understanding data processing |
+| Dataset Sharing | One-click upload to HuggingFace |
 
-- **单条处理模式** - 支持文件上传、URL 提取、AI 智能生成
-- **批量处理模式** - 批量 URL 处理，进度追踪
-- **格式转换工具** - Alpaca ↔ OpenAI 双向转换
-- **CoT 生成器** - Chain of Thought 推理数据生成
-- **图片数据集生成器** - 图像描述自动生成
-- **视频数据集生成器** - 视频理解数据处理
-- **数据集分享** - 一键上传到 HuggingFace
+### Harbor Task Management
 
-#### Harbor 任务管理
+| Feature | Description |
+|---------|-------------|
+| GitHub Task Generator | Auto-generate tasks from GitHub repositories |
+| Visual Task Builder | Drag-and-drop editing with Monaco Editor |
+| Task Manager | List, search, view details, export tasks |
+| Task Validation | Integrated Harbor validation tools |
 
-- **GitHub 任务生成器** - 从 GitHub 仓库自动生成任务
-- **可视化任务构建器** - 拖拽式任务编辑，Monaco Editor 集成
-- **任务管理器** - 任务列表、搜索、详情、导出
-- **任务验证** - 集成 Harbor 验证工具
+## Tech Stack
 
-### 🏗️ 技术架构
+### Frontend
 
-#### 前端技术栈
+- **Framework**: React 18 + Vite 5
+- **UI Design**: Material Design 3
+- **Styling**: TailwindCSS 3.4
+- **State Management**: Zustand
+- **Routing**: React Router DOM 7
+- **Code Editor**: Monaco Editor
+- **Flow Editor**: React Flow
 
-- **框架**: React 18 + Vite 5
-- **UI 设计**: Material Design 3
-- **样式**: TailwindCSS 3.4
-- **状态管理**: Zustand
-- **路由**: React Router DOM 7
-- **类型**: TypeScript 5.4
+### Backend
 
-#### 后端技术栈
+- **Framework**: FastAPI 0.115+
+- **Language**: Python 3.12
+- **Validation**: Pydantic 2.10+
+- **LLM Integration**: LiteLLM 1.40+
+- **Document Processing**: Docling 2.0+
+- **Agent Framework**: Camel AI 0.2.89
+- **Task Framework**: Harbor 0.1.45
 
-- **框架**: FastAPI 0.115+
-- **语言**: Python 3.12
-- **验证**: Pydantic 2.10+
-- **Agent**: Camel AI 0.2.89
-- **任务框架**: Harbor 0.1.45
+### Desktop Application
 
-#### 桌面应用
+- **Framework**: Electron 33
+- **Packaging**: Electron Builder
+- **Platforms**: macOS, Windows, Linux
 
-- **框架**: Electron 33
-- **打包**: Electron Builder
-- **平台**: macOS, Windows, Linux
+## Quick Start
 
-### 🚀 快速开始
+### Prerequisites
 
-#### 开发模式
+- Node.js 18+
+- Python 3.12+
+- uv (Python package manager)
+- yarn (Node package manager)
+
+### Installation
 
 ```bash
-# 1. 启动后端
+# Clone repository
+git clone https://github.com/yourusername/SeekingData.git
+cd SeekingData
+
+# Install frontend dependencies
+yarn install
+
+# Install backend dependencies
 cd backend
+uv venv .venv --python 3.12
 source .venv/bin/activate  # macOS/Linux
-# 或 .venv\Scripts\activate  # Windows
+# or .venv\Scripts\activate  # Windows
+uv pip install -r requirements.txt
+```
+
+### Development
+
+```bash
+# Terminal 1: Start backend
+cd backend
+source .venv/bin/activate
 uvicorn main:app --reload --port 5001
 
-# 2. 启动前端（新终端）
+# Terminal 2: Start frontend
 yarn dev
 ```
 
-访问：http://localhost:3000
+Access the application at: http://localhost:3002
 
-#### 生产打包
+### Production Build
 
 ```bash
 # macOS
@@ -95,124 +127,112 @@ yarn build:win
 yarn build:linux
 ```
 
-### 📦 安装
+## Configuration
 
-#### 前置要求
-
-- Node.js 18+
-- Python 3.12+
-- uv（Python 包管理器）
-
-#### 安装步骤
-
-```bash
-# 克隆仓库
-git clone https://github.com/yourusername/SeekingData.git
-cd SeekingData
-
-# 安装前端依赖
-yarn install
-
-# 安装后端依赖
-cd backend
-uv venv .venv --python 3.12
-source .venv/bin/activate
-uv pip install -r requirements.txt
-uv pip install -e /path/to/harbor  # 安装本地 Harbor
-```
-
-### 🔧 配置
-
-创建 `backend/.env` 文件：
+### Backend Environment (backend/.env)
 
 ```env
-# OpenAI API
+# LLM API Configuration
 OPENAI_API_KEY=sk-xxx
 
-# GitHub Token（可选）
+# GitHub Token (optional, for GitHub task generation)
 GITHUB_TOKEN=ghp_xxx
 
-# 应用配置
+# Application
 APP_NAME=SeekingData Pro
 APP_VERSION=0.1.0
 DEBUG=true
 ```
 
-### 📚 文档
+### Frontend Settings
 
-- [快速开始指南](QUICK_START.md)
-- [架构文档](docs/ARCHITECTURE.md)
-- [API 文档](docs/API.md)
-- [用户手册](docs/USER_GUIDE.md)
-- [迁移指南](docs/MIGRATION.md)
+Configure via the Settings page in the application:
 
-### 🤝 贡献
+- **API Base URL**: LLM provider endpoint
+- **API Key**: Your secret API key
+- **Model**: Model identifier (e.g., qwen/qwen3.5-plus)
+- **Suggestions Count**: Number of suggestions per request (1-10)
 
-欢迎贡献！请查看 [贡献指南](CONTRIBUTING.md)。
+## Project Structure
 
-### 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
-
-### 🙏 致谢
-
-- [Harbor](https://github.com/yourusername/harbor) - Agent 任务框架
-- [Camel AI](https://github.com/camel-ai/camel) - AI Agent 框架
-- [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Web 框架
-- [React](https://reactjs.org/) - 用户界面库
-- [Electron](https://www.electronjs.org/) - 跨平台桌面应用
-
----
-
-## English
-
-### 🎯 Overview
-
-SeekingData Pro is a desktop application that integrates SFT data generation and Harbor task management, featuring Material Design 3 for a modern user experience.
-
-### ✨ Key Features
-
-#### SFT Data Generation
-
-- **Single Processing Mode** - File upload, URL extraction, AI-powered generation
-- **Batch Processing Mode** - Bulk URL processing with progress tracking
-- **Format Converter** - Alpaca ↔ OpenAI bidirectional conversion
-- **CoT Generator** - Chain of Thought reasoning data generation
-- **Image Dataset Generator** - Automatic image description generation
-- **Video Dataset Generator** - Video understanding data processing
-- **Dataset Sharing** - One-click upload to HuggingFace
-
-#### Harbor Task Management
-
-- **GitHub Task Generator** - Auto-generate tasks from GitHub repositories
-- **Visual Task Builder** - Drag-and-drop task editing with Monaco Editor
-- **Task Manager** - Task list, search, details, export
-- **Task Validation** - Integrated Harbor validation tools
-
-### 🚀 Quick Start
-
-```bash
-# Development mode
-cd backend && source .venv/bin/activate
-uvicorn main:app --reload --port 5001
-
-# Frontend (new terminal)
-yarn dev
-
-# Production build
-yarn build:mac  # macOS
-yarn build:win  # Windows
-yarn build:linux  # Linux
+```
+SeekingData/
+├── src/                    # React frontend
+│   ├── components/
+│   │   ├── sft/           # SFT data generation
+│   │   ├── harbor/        # Harbor task management
+│   │   ├── ui/            # Material Design 3 components
+│   │   └── layout/        # Layout components
+│   ├── lib/               # Utilities and stores
+│   └── pages/             # Page components
+├── backend/               # FastAPI backend
+│   ├── agents/           # AI agents (GitHub, etc.)
+│   ├── api/routes/       # API endpoints
+│   ├── models/           # Pydantic models
+│   ├── services/         # Business logic
+│   └── tasks/            # Harbor task storage
+├── electron/             # Electron main process
+├── scripts/              # Build scripts
+└── docs/                 # Documentation
 ```
 
-### 📄 License
+## API Endpoints
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/sft/config` | Get current configuration |
+| POST | `/api/sft/config` | Save configuration |
+| POST | `/api/sft/generate` | Generate SFT data |
+| POST | `/api/sft/batch` | Batch URL processing |
+| POST | `/api/sft/convert` | Format conversion |
+| GET | `/api/harbor/tasks` | List all tasks |
+| POST | `/api/harbor/tasks` | Create new task |
+| GET | `/api/harbor/tasks/{id}` | Get task details |
+| POST | `/api/harbor/github/generate` | Generate from GitHub |
+
+## Supported Models
+
+The application supports any LiteLLM-compatible model:
+
+| Provider | Model Examples |
+|----------|---------------|
+| OpenAI | gpt-4, gpt-4o, gpt-3.5-turbo |
+| Qwen | qwen/qwen3.5-plus, qwen/qwen-max |
+| Moonshot | moonshot/kimi-k2.5 |
+| Zhipu | zhipu/glm-5, zhipu/glm-4 |
+| MiniMax | minimax/MiniMax-M2.5 |
+| DeepSeek | openai/deepseek-v3.2 |
+
+## Documentation
+
+- [Quick Start Guide](QUICK_START.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [API Reference](docs/API.md)
+- [User Guide](docs/USER_GUIDE.md)
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines before 
+submitting a pull request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) 
+file for details.
+
+## Acknowledgments
+
+- [Harbor](https://github.com/harbor-ai/harbor) - Agent task framework
+- [Camel AI](https://github.com/camel-ai/camel) - AI agent framework
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern web framework
+- [React](https://reactjs.org/) - UI library
+- [Electron](https://www.electronjs.org/) - Cross-platform desktop apps
+- [LiteLLM](https://github.com/BerriAI/litellm) - Unified LLM interface
 
 ---
 
 <div align="center">
 
-Made with ❤️ by SeekingData Team
+Made with ❤️ by SeekingX-AILab
 
 </div>

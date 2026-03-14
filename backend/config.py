@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # LLM Configuration (litellm-compatible)
     llm_api_base: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
-    llm_model: str = "openai/gpt-4"
+    llm_model: str = "openai/deepseek-v3.2"
     suggestions_count: int = 3
 
     # GitHub Configuration

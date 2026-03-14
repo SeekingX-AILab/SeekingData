@@ -1,35 +1,230 @@
-import os
-import tempfile
+"""SFT training data generation service.
+
+Uses docling for document conversion, litellm for LLM calls,
+and implements multi-round generation with quality controls.
+"""
+
+import asyncio
+import json
+import logging
+import random
+import re
 import uuid
-from typing import List, Optional
 from datetime import datetime
+from difflib import SequenceMatcher
+from typing import AsyncGenerator, List, Optional
+
 import httpx
 from litellm import acompletion
+from litellm.exceptions import (
+    APIConnectionError,
+    RateLimitError,
+    ServiceUnavailableError,
+)
 from pathlib import Path
 
-from models.sft import DataItem, CoTData, CoTStep, SFTConfig
+from models.sft import (
+    DataItem,
+    CoTData,
+    CoTStep,
+    SFTConfig,
+)
+
+logger = logging.getLogger(__name__)
+
+# ----- Lazy-initialised docling converter -----
+# DocumentConverter is heavyweight; build it once at
+# module level on first use.
+_converter = None
+
+
+def _get_converter():
+    """Return the singleton DocumentConverter instance.
+
+    Lazily initialises a ``docling.DocumentConverter``
+    on first call. The converter is heavyweight (loads
+    ML models) so it is reused across all requests.
+
+    Returns:
+        DocumentConverter: The shared converter instance.
+    """
+    global _converter
+    if _converter is None:
+        from docling.document_converter import (
+            DocumentConverter,
+        )
+        _converter = DocumentConverter()
+    return _converter
+
+
+# ----- Style / temperature presets for diversity -----
+_STYLES = [
+    "Q&A style",
+    "instruction-following style",
+    "scenario-based style",
+    "analytical/reasoning style",
+]
+_TEMPS = [0.6, 0.8, 0.9, 0.7]
+
+
+# ----- Helpers (module-level, stateless) -----
+
+def _extract_json(text: str) -> str:
+    r"""Strip markdown code fences from LLM output.
+
+    LLMs often wrap JSON in ` ```json ... ``` ` blocks
+    which breaks ``json.loads``. This helper removes
+    those fences so the raw JSON can be parsed.
+
+    Args:
+        text (str): Raw LLM output that may contain
+            markdown code fences.
+
+    Returns:
+        str: Cleaned text with code fences removed.
+    """
+    pattern = r"```(?:json)?\s*\n?(.*?)\n?\s*```"
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
+def _chunk_content(
+    text: str,
+    max_chars: int = 6000,
+    overlap: int = 500,
+) -> List[str]:
+    r"""Split text into overlapping chunks by paragraph.
+
+    Splits on double-newlines (paragraph boundaries),
+    greedily fills each chunk up to *max_chars*, and
+    overlaps the last *overlap* characters into the
+    next chunk to preserve context across boundaries.
+
+    Args:
+        text (str): The full source text.
+        max_chars (int): Maximum characters per chunk.
+            Defaults to 6000.
+        overlap (int): Number of trailing characters to
+            repeat at the start of the next chunk.
+            Defaults to 500.
+
+    Returns:
+        List[str]: Ordered list of text chunks.
+    """
+    if len(text) <= max_chars:
+        return [text]
+
+    paragraphs = text.split("\n\n")
+    chunks: List[str] = []
+    current = ""
+
+    for para in paragraphs:
+        candidate = (
+            (current + "\n\n" + para) if current else para
+        )
+        if len(candidate) > max_chars and current:
+            chunks.append(current)
+            # Overlap: seed next chunk with tail
+            tail = current[-overlap:] if overlap else ""
+            current = tail + "\n\n" + para
+        else:
+            current = candidate
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
+def _validate_item(item: dict) -> bool:
+    r"""Check that a training item meets minimum quality.
+
+    Rejects items whose ``instruction`` is shorter than
+    10 characters or whose ``output`` is shorter than
+    20 characters.
+
+    Args:
+        item (dict): A training data dictionary with keys
+            ``instruction``, ``input``, and ``output``.
+
+    Returns:
+        bool: True if the item passes validation.
+    """
+    instr = item.get("instruction", "")
+    output = item.get("output", "")
+    return len(instr) >= 10 and len(output) >= 20
+
+
+def _deduplicate_items(
+    items: List[dict],
+    threshold: float = 0.85,
+) -> List[dict]:
+    r"""Remove near-duplicate training items.
+
+    Uses ``difflib.SequenceMatcher`` on the concatenation
+    of ``instruction`` + ``output`` to detect duplicates
+    at the given similarity *threshold*.
+
+    Args:
+        items (List[dict]): Candidate training items.
+        threshold (float): Similarity ratio above which
+            an item is considered a duplicate. Defaults
+            to 0.85.
+
+    Returns:
+        List[dict]: De-duplicated list of items.
+    """
+    unique: List[dict] = []
+    for item in items:
+        text = (
+            item.get("instruction", "")
+            + " "
+            + item.get("output", "")
+        )
+        is_dup = False
+        for kept in unique:
+            kept_text = (
+                kept.get("instruction", "")
+                + " "
+                + kept.get("output", "")
+            )
+            ratio = SequenceMatcher(
+                None, text, kept_text
+            ).ratio()
+            if ratio > threshold:
+                is_dup = True
+                break
+        if not is_dup:
+            unique.append(item)
+    return unique
 
 
 class SFTService:
-    """Service for generating SFT training data via LLM.
+    r"""Service for generating SFT training data via LLM.
 
     Uses litellm to support 100+ LLM providers through a
-    unified interface. Users configure model, api_key, and
-    api_base to switch between providers.
+    unified interface. Employs multi-round generation with
+    style variation, quality validation, and deduplication
+    to produce diverse, high-quality training items.
 
     Attributes:
-        config (SFTConfig): The service configuration holding
-            model, api_key, base_url, etc.
+        config (SFTConfig): The service configuration
+            holding model, api_key, base_url, etc.
     """
 
     def __init__(self, config: SFTConfig):
-        """Initialize the SFT service.
+        """Initialise the SFT service.
 
         Args:
-            config (SFTConfig): Configuration containing LLM
-                provider credentials and model settings.
+            config (SFTConfig): Configuration containing
+                LLM provider credentials and model
+                settings.
         """
         self.config = config
+
+    # ----- LLM call with retry -----
 
     async def _llm_call(
         self,
@@ -38,12 +233,17 @@ class SFTService:
         temperature: float = 0.7,
         max_tokens: int = 4000,
     ) -> str:
-        """Make an async LLM call via litellm.
+        r"""Make an async LLM call with exponential backoff.
+
+        Retries up to 3 times on transient errors such as
+        rate-limit, connection, service-unavailable, and
+        timeout errors. Non-transient errors (auth, invalid
+        model) are raised immediately.
 
         Args:
             messages (list): Chat messages in OpenAI format.
             model (Optional[str]): Model override. Defaults
-                to self.config.model.
+                to ``self.config.model``.
             temperature (float): Sampling temperature.
             max_tokens (int): Maximum tokens in response.
 
@@ -51,79 +251,82 @@ class SFTService:
             str: The content of the assistant's reply.
 
         Raises:
-            Exception: If the LLM call fails.
+            Exception: If all retries are exhausted or a
+                non-transient error occurs.
         """
-        response = await acompletion(
-            model=model or self.config.model,
-            api_key=self.config.api_key,
-            api_base=self.config.base_url,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
+        max_retries = 3
+        transient = (
+            RateLimitError,
+            APIConnectionError,
+            ServiceUnavailableError,
+            TimeoutError,
         )
-        return response.choices[0].message.content
+
+        for attempt in range(max_retries):
+            try:
+                response = await acompletion(
+                    model=model or self.config.model,
+                    api_key=self.config.api_key,
+                    api_base=self.config.base_url,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                return response.choices[0].message.content
+            except transient as exc:
+                if attempt == max_retries - 1:
+                    raise
+                delay = (
+                    1.0 * (2 ** attempt)
+                    + random.uniform(0, 1)
+                )
+                logger.warning(
+                    "LLM call attempt %d failed: %s. "
+                    "Retrying in %.1fs",
+                    attempt + 1,
+                    exc,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+        # Unreachable, but keeps mypy happy
+        raise RuntimeError("Exhausted retries")
+
+    # ----- Content extraction via docling -----
 
     async def extract_content_from_file(
         self, file_path: str
     ) -> str:
-        """Extract content from uploaded file.
+        r"""Extract content from an uploaded file via docling.
 
-        Supports PDF, DOCX, TXT, and MD formats.
+        Docling handles PDF, DOCX, PPTX, XLSX, CSV, HTML,
+        images, and more. The conversion is CPU-bound and
+        synchronous, so it is run in a thread pool.
 
         Args:
             file_path (str): Path to the uploaded file.
 
         Returns:
-            str: The extracted text content.
+            str: Extracted content as Markdown text.
 
         Raises:
-            ValueError: If file type is unsupported.
-            Exception: If required library is not installed.
+            Exception: If docling conversion fails.
         """
-        ext = Path(file_path).suffix.lower()
+        def _convert():
+            """Run docling conversion synchronously."""
+            converter = _get_converter()
+            result = converter.convert(file_path)
+            return result.document.export_to_markdown()
 
-        if ext in ['.txt', '.md']:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-
-        elif ext == '.pdf':
-            try:
-                import pdfplumber
-                with pdfplumber.open(file_path) as pdf:
-                    text = ''
-                    for page in pdf.pages:
-                        text += page.extract_text() or ''
-                    return text.strip()
-            except ImportError:
-                raise Exception(
-                    "pdfplumber not installed. "
-                    "Run: pip install pdfplumber"
-                )
-
-        elif ext == '.docx':
-            try:
-                from docx import Document
-                doc = Document(file_path)
-                return '\n'.join(
-                    [para.text for para in doc.paragraphs]
-                )
-            except ImportError:
-                raise Exception(
-                    "python-docx not installed. "
-                    "Run: pip install python-docx"
-                )
-
-        else:
-            raise ValueError(
-                f"Unsupported file type: {ext}"
-            )
+        return await asyncio.to_thread(_convert)
 
     async def extract_content_from_url(
         self, url: str
     ) -> str:
-        """Extract content from a URL.
+        r"""Extract content from a URL via docling.
 
-        Handles HTML, JSON, and plain text responses.
+        Tries docling first (handles HTML, PDF links, etc.).
+        Falls back to a plain httpx fetch for JSON and plain
+        text URLs where docling adds no value.
 
         Args:
             url (str): The URL to fetch content from.
@@ -132,8 +335,25 @@ class SFTService:
             str: The extracted text content.
 
         Raises:
-            Exception: If the HTTP request fails.
+            Exception: If both docling and httpx fail.
         """
+        # Try docling first
+        try:
+            def _convert_url():
+                """Run docling URL conversion."""
+                converter = _get_converter()
+                result = converter.convert(url)
+                return result.document.export_to_markdown()
+
+            return await asyncio.to_thread(_convert_url)
+        except Exception as docling_err:
+            logger.info(
+                "Docling URL conversion failed (%s), "
+                "falling back to httpx",
+                docling_err,
+            )
+
+        # Fallback: plain httpx for text/JSON URLs
         async with httpx.AsyncClient(
             timeout=30.0
         ) as client:
@@ -144,44 +364,36 @@ class SFTService:
                 response.raise_for_status()
 
                 content_type = response.headers.get(
-                    'content-type', ''
+                    "content-type", ""
                 )
-
-                if 'text/html' in content_type:
-                    from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(
-                        response.text, 'html.parser'
-                    )
-                    for script in soup(
-                        ["script", "style", "nav", "footer"]
-                    ):
-                        script.decompose()
-                    text = soup.get_text(
-                        separator='\n', strip=True
-                    )
-                    return text
-
-                elif 'application/json' in content_type:
+                if "application/json" in content_type:
                     return response.text
+                return response.text[:10000]
 
-                else:
-                    return response.text[:5000]
-
-            except httpx.HTTPError as e:
+            except httpx.HTTPError as exc:
                 raise Exception(
-                    f"Failed to fetch URL: {str(e)}"
-                )
+                    f"Failed to fetch URL: {exc}"
+                ) from exc
+
+    # ----- SFT data generation (multi-round) -----
 
     async def generate_sft_data(
         self,
         content: str,
         instruction: str,
-        suggestions_count: int = 3
+        suggestions_count: int = 3,
     ) -> List[DataItem]:
-        """Generate SFT training data using LLM.
+        r"""Generate SFT training data using multi-round LLM.
+
+        Splits the workload into rounds of 2-3 items,
+        rotating through style presets and temperatures
+        to maximise diversity. Content longer than 6000
+        characters is chunked and rounds are distributed
+        across chunks. Results are validated and
+        deduplicated before returning.
 
         Args:
-            content (str): Source content for data generation.
+            content (str): Source content for generation.
             instruction (str): User instruction describing
                 the desired training data.
             suggestions_count (int): Number of items to
@@ -191,83 +403,310 @@ class SFTService:
             List[DataItem]: Generated training data items.
 
         Raises:
-            Exception: If LLM call or parsing fails.
+            Exception: If generation fails after retries.
         """
-        prompt = (
-            f"You are a training data generation assistant."
-            f" Based on the following content and "
-            f"instruction, generate {suggestions_count} "
-            f"high-quality training data items.\n\n"
-            f"Content:\n{content}\n\n"
-            f"Instruction:\n{instruction}\n\n"
-            f"Generate {suggestions_count} different "
-            f"training data items. Each item should "
-            f"include:\n"
-            f"1. A clear instruction\n"
-            f"2. Relevant input content (can be empty)\n"
-            f"3. A comprehensive output\n\n"
-            f"Format each item as JSON:\n"
-            f'{{"instruction": "...", "input": "...", '
-            f'"output": "..."}}\n\n'
-            f"Return as a JSON array."
-        )
+        chunks = _chunk_content(content)
+        collected: List[dict] = []
+        max_rounds = suggestions_count * 2
 
-        try:
-            result_text = await self._llm_call(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a training data "
-                            "generation expert."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.7,
-                max_tokens=4000,
+        # Decide items per round
+        if suggestions_count <= 3:
+            items_per_round = suggestions_count
+        else:
+            items_per_round = min(3, suggestions_count)
+
+        round_idx = 0
+        while (
+            len(collected) < suggestions_count
+            and round_idx < max_rounds
+        ):
+            chunk = chunks[round_idx % len(chunks)]
+            style = _STYLES[round_idx % len(_STYLES)]
+            temp = _TEMPS[round_idx % len(_TEMPS)]
+
+            remaining = suggestions_count - len(collected)
+            count = min(items_per_round, remaining)
+
+            # Build anti-repetition clause
+            anti_rep = ""
+            if collected:
+                existing = "\n".join(
+                    f"- {it['instruction']}"
+                    for it in collected
+                )
+                anti_rep = (
+                    "\n\nIMPORTANT: Do NOT repeat or "
+                    "paraphrase any of these existing "
+                    "instructions:\n"
+                    f"{existing}\n"
+                )
+
+            user_prompt = (
+                f"Based on the following content and "
+                f"instruction, generate {count} "
+                f"high-quality SFT training data items "
+                f"in **{style}**.\n\n"
+                f"Content:\n{chunk}\n\n"
+                f"Instruction:\n{instruction}\n\n"
+                f"Each item must include:\n"
+                f"- instruction: a clear task\n"
+                f"- input: relevant context (can be "
+                f"empty string)\n"
+                f"- output: a comprehensive answer\n\n"
+                f"Return ONLY a JSON array of objects "
+                f"with keys: instruction, input, output."
+                f"{anti_rep}"
             )
-
-            import json
 
             try:
-                items = json.loads(result_text)
-                if not isinstance(items, list):
-                    items = [items]
-            except json.JSONDecodeError:
-                items = self._parse_items_from_text(
-                    result_text
+                result_text = await self._llm_call(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an expert SFT "
+                                "training data generator."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": user_prompt,
+                        },
+                    ],
+                    temperature=temp,
+                    max_tokens=4000,
                 )
 
-            data_items = []
-            for i, item in enumerate(
-                items[:suggestions_count]
-            ):
-                data_item = DataItem(
+                cleaned = _extract_json(result_text)
+                try:
+                    items = json.loads(cleaned)
+                    if not isinstance(items, list):
+                        items = [items]
+                except json.JSONDecodeError:
+                    items = self._parse_items_from_text(
+                        result_text
+                    )
+
+                # Validate and append
+                for item in items:
+                    if _validate_item(item):
+                        collected.append(item)
+
+            except Exception as exc:
+                logger.warning(
+                    "Round %d failed: %s", round_idx, exc
+                )
+
+            round_idx += 1
+
+        # Deduplicate
+        collected = _deduplicate_items(collected)
+
+        # Build DataItem objects
+        data_items = []
+        for item in collected[:suggestions_count]:
+            data_items.append(
+                DataItem(
                     id=str(uuid.uuid4()),
                     instruction=item.get(
-                        'instruction', ''
+                        "instruction", ""
                     ),
-                    input=item.get('input', ''),
-                    output=item.get('output', ''),
-                    source='ai_generated',
+                    input=item.get("input", ""),
+                    output=item.get("output", ""),
+                    source="ai_generated",
                     timestamp=datetime.now(),
                 )
-                data_items.append(data_item)
-
-            return data_items
-
-        except Exception as e:
-            raise Exception(
-                f"Failed to generate data: {str(e)}"
             )
+
+        return data_items
+
+    # ----- SSE streaming generation -----
+
+    async def generate_sft_data_stream(
+        self,
+        content: str,
+        instruction: str,
+        suggestions_count: int = 3,
+    ) -> AsyncGenerator[dict, None]:
+        r"""Generate SFT data with streaming progress events.
+
+        Yields dict events as each generation round completes,
+        enabling Server-Sent Events (SSE) streaming to the
+        frontend for real-time progress feedback.
+
+        Event types yielded:
+            - ``progress``: Before each LLM call with round
+              info and item counts.
+            - ``items``: After each round with newly validated
+              items.
+            - ``done``: After dedup with all final items.
+            - ``error``: If a round fails (non-fatal).
+
+        Args:
+            content (str): Source content for generation.
+            instruction (str): User instruction describing
+                the desired training data.
+            suggestions_count (int): Number of items to
+                generate. Defaults to 3.
+
+        Yields:
+            dict: Event dictionaries with a ``type`` key.
+        """
+        chunks = _chunk_content(content)
+        collected: List[dict] = []
+        max_rounds = suggestions_count * 2
+
+        if suggestions_count <= 3:
+            items_per_round = suggestions_count
+        else:
+            items_per_round = min(3, suggestions_count)
+
+        round_idx = 0
+        while (
+            len(collected) < suggestions_count
+            and round_idx < max_rounds
+        ):
+            # Emit progress event before LLM call
+            yield {
+                "type": "progress",
+                "round": round_idx + 1,
+                "total_rounds": max_rounds,
+                "items_so_far": len(collected),
+                "target": suggestions_count,
+            }
+
+            chunk = chunks[round_idx % len(chunks)]
+            style = _STYLES[round_idx % len(_STYLES)]
+            temp = _TEMPS[round_idx % len(_TEMPS)]
+
+            remaining = (
+                suggestions_count - len(collected)
+            )
+            count = min(items_per_round, remaining)
+
+            # Build anti-repetition clause
+            anti_rep = ""
+            if collected:
+                existing = "\n".join(
+                    f"- {it['instruction']}"
+                    for it in collected
+                )
+                anti_rep = (
+                    "\n\nIMPORTANT: Do NOT repeat or "
+                    "paraphrase any of these existing "
+                    "instructions:\n"
+                    f"{existing}\n"
+                )
+
+            user_prompt = (
+                f"Based on the following content and "
+                f"instruction, generate {count} "
+                f"high-quality SFT training data items "
+                f"in **{style}**.\n\n"
+                f"Content:\n{chunk}\n\n"
+                f"Instruction:\n{instruction}\n\n"
+                f"Each item must include:\n"
+                f"- instruction: a clear task\n"
+                f"- input: relevant context (can be "
+                f"empty string)\n"
+                f"- output: a comprehensive answer\n\n"
+                f"Return ONLY a JSON array of objects "
+                f"with keys: instruction, input, output."
+                f"{anti_rep}"
+            )
+
+            try:
+                result_text = await self._llm_call(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an expert SFT "
+                                "training data generator."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": user_prompt,
+                        },
+                    ],
+                    temperature=temp,
+                    max_tokens=4000,
+                )
+
+                cleaned = _extract_json(result_text)
+                try:
+                    items = json.loads(cleaned)
+                    if not isinstance(items, list):
+                        items = [items]
+                except json.JSONDecodeError:
+                    items = (
+                        self._parse_items_from_text(
+                            result_text
+                        )
+                    )
+
+                # Validate and collect new items
+                new_items = []
+                for item in items:
+                    if _validate_item(item):
+                        collected.append(item)
+                        new_items.append(item)
+
+                # Emit items event with this round's items
+                if new_items:
+                    yield {
+                        "type": "items",
+                        "new_items": new_items,
+                    }
+
+            except Exception as exc:
+                logger.warning(
+                    "Round %d failed: %s",
+                    round_idx,
+                    exc,
+                )
+                yield {
+                    "type": "error",
+                    "round": round_idx + 1,
+                    "message": str(exc),
+                }
+
+            round_idx += 1
+
+        # Deduplicate and build final DataItem objects
+        collected = _deduplicate_items(collected)
+        data_items = []
+        for item in collected[:suggestions_count]:
+            data_items.append(
+                DataItem(
+                    id=str(uuid.uuid4()),
+                    instruction=item.get(
+                        "instruction", ""
+                    ),
+                    input=item.get("input", ""),
+                    output=item.get("output", ""),
+                    source="ai_generated",
+                    timestamp=datetime.now(),
+                ).model_dump()
+            )
+
+        yield {
+            "type": "done",
+            "items": data_items,
+        }
+
+    # ----- Text fallback parser (regex-based) -----
 
     def _parse_items_from_text(
         self, text: str
     ) -> List[dict]:
-        """Parse training items from text fallback.
+        r"""Parse training items from unstructured text.
 
-        Used when JSON parsing of LLM output fails.
+        Uses regex to capture ``Instruction:``,
+        ``Input:``, and ``Output:`` blocks, handling
+        multiline content, bold/heading prefixes, and
+        variant casing.
 
         Args:
             text (str): Raw text output from the LLM.
@@ -275,44 +714,72 @@ class SFTService:
         Returns:
             List[dict]: Parsed training data dicts.
         """
-        items = []
-        lines = text.strip().split('\n')
+        # Split text into item blocks by Instruction:
+        instr_pattern = re.compile(
+            r"(?:\*{0,2}|#{1,3})?\s*"
+            r"[Ii]nstruction\s*\**\s*:\s*",
+        )
+        # Split into segments starting with Instruction:
+        parts = instr_pattern.split(text)
+        # First part is before any Instruction:
+        parts = parts[1:] if len(parts) > 1 else []
 
-        current_item = {}
-        for line in lines:
-            line = line.strip()
-            if line.startswith('Instruction:') or \
-               line.startswith('instruction:'):
-                if current_item:
-                    items.append(current_item)
-                current_item = {
-                    'instruction': (
-                        line.split(':', 1)[1].strip()
-                    )
-                }
-            elif line.startswith('Input:') or \
-                 line.startswith('input:'):
-                current_item['input'] = (
-                    line.split(':', 1)[1].strip()
-                )
-            elif line.startswith('Output:') or \
-                 line.startswith('output:'):
-                current_item['output'] = (
-                    line.split(':', 1)[1].strip()
-                )
+        items: List[dict] = []
+        input_pat = re.compile(
+            r"(?:\*{0,2}|#{1,3})?\s*"
+            r"[Ii]nput\s*\**\s*:\s*",
+        )
+        output_pat = re.compile(
+            r"(?:\*{0,2}|#{1,3})?\s*"
+            r"[Oo]utput\s*\**\s*:\s*",
+        )
 
-        if current_item:
-            items.append(current_item)
+        for part in parts:
+            item: dict = {}
+
+            # Try to split by Output:
+            out_split = output_pat.split(part, maxsplit=1)
+            if len(out_split) == 2:
+                before_output = out_split[0]
+                item["output"] = out_split[1].strip()
+            else:
+                before_output = part
+                item["output"] = ""
+
+            # Try to split by Input:
+            inp_split = input_pat.split(
+                before_output, maxsplit=1
+            )
+            if len(inp_split) == 2:
+                item["instruction"] = (
+                    inp_split[0].strip()
+                )
+                item["input"] = inp_split[1].strip()
+            else:
+                item["instruction"] = (
+                    before_output.strip()
+                )
+                item["input"] = ""
+
+            if item.get("instruction"):
+                items.append(item)
 
         return items
+
+    # ----- Chain-of-Thought generation -----
 
     async def generate_cot_data(
         self, question: str
     ) -> CoTData:
-        """Generate Chain of Thought reasoning data.
+        r"""Generate Chain of Thought reasoning data.
+
+        Uses regex-based parsing to extract steps of the
+        form ``Step N: ...`` and the final ``Answer: ...``
+        block. Handles multiline step content and avoids
+        false matches like "Stepping back...".
 
         Args:
-            question (str): The question to analyze.
+            question (str): The question to analyse.
 
         Returns:
             CoTData: Structured CoT reasoning with steps
@@ -322,23 +789,23 @@ class SFTService:
             Exception: If LLM call or parsing fails.
         """
         prompt = (
-            f"Analyze this question step by step and "
-            f"provide a detailed reasoning chain.\n\n"
+            "Analyze this question step by step and "
+            "provide a detailed reasoning chain.\n\n"
             f"Question: {question}\n\n"
-            f"Break down your reasoning into clear "
-            f"steps:\n"
-            f"1. Identify the key components of the "
-            f"question\n"
-            f"2. Apply logical reasoning to each "
-            f"component\n"
-            f"3. Combine the reasoning to reach a "
-            f"conclusion\n"
-            f"4. Provide the final answer\n\n"
-            f"Format your response as:\n"
-            f"Step 1: [thought]\n"
-            f"Step 2: [thought]\n"
-            f"...\n"
-            f"Answer: [final answer]"
+            "Break down your reasoning into clear "
+            "steps:\n"
+            "1. Identify the key components of the "
+            "question\n"
+            "2. Apply logical reasoning to each "
+            "component\n"
+            "3. Combine the reasoning to reach a "
+            "conclusion\n"
+            "4. Provide the final answer\n\n"
+            "Format your response as:\n"
+            "Step 1: [thought]\n"
+            "Step 2: [thought]\n"
+            "...\n"
+            "Answer: [final answer]"
         )
 
         try:
@@ -348,8 +815,8 @@ class SFTService:
                         "role": "system",
                         "content": (
                             "You are an expert at logical "
-                            "reasoning and chain-of-thought"
-                            " analysis."
+                            "reasoning and "
+                            "chain-of-thought analysis."
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -358,35 +825,34 @@ class SFTService:
                 max_tokens=2000,
             )
 
-            steps = []
-            current_step = None
-            answer = ""
+            # Regex-based CoT parser
+            step_pattern = re.compile(
+                r"Step\s+(\d+)\s*:\s*"
+                r"(.*?)"
+                r"(?=Step\s+\d+\s*:|Answer\s*:|$)",
+                re.DOTALL | re.IGNORECASE,
+            )
+            answer_pattern = re.compile(
+                r"Answer\s*:\s*(.*)",
+                re.DOTALL | re.IGNORECASE,
+            )
 
-            for line in result_text.split('\n'):
-                line = line.strip()
-                if line.startswith('Step'):
-                    if current_step:
-                        steps.append(current_step)
-                    step_num = len(steps) + 1
-                    thought = (
-                        line.split(':', 1)[1].strip()
-                        if ':' in line
-                        else ''
-                    )
-                    current_step = CoTStep(
+            steps: List[CoTStep] = []
+            for match in step_pattern.finditer(
+                result_text
+            ):
+                step_num = int(match.group(1))
+                thought = match.group(2).strip()
+                steps.append(
+                    CoTStep(
                         step=step_num, thought=thought
                     )
-                elif line.startswith('Answer:'):
-                    if current_step:
-                        steps.append(current_step)
-                    answer = (
-                        line.split(':', 1)[1].strip()
-                    )
-                elif current_step:
-                    current_step.thought += ' ' + line
+                )
 
-            if current_step and current_step not in steps:
-                steps.append(current_step)
+            answer = ""
+            ans_match = answer_pattern.search(result_text)
+            if ans_match:
+                answer = ans_match.group(1).strip()
 
             return CoTData(
                 id=str(uuid.uuid4()),
@@ -395,15 +861,17 @@ class SFTService:
                 answer=answer,
             )
 
-        except Exception as e:
+        except Exception as exc:
             raise Exception(
-                f"Failed to generate CoT data: {str(e)}"
-            )
+                f"Failed to generate CoT data: {exc}"
+            ) from exc
+
+    # ----- Image description -----
 
     async def generate_image_description(
         self, image_path: str
     ) -> str:
-        """Generate description for image using vision model.
+        r"""Generate description for image using vision model.
 
         Uses the configured vision_model instead of a
         hardcoded model name, allowing any litellm-supported
@@ -421,10 +889,10 @@ class SFTService:
         try:
             import base64
 
-            with open(image_path, 'rb') as f:
+            with open(image_path, "rb") as f:
                 image_data = base64.b64encode(
                     f.read()
-                ).decode('utf-8')
+                ).decode("utf-8")
 
             result_text = await self._llm_call(
                 model=self.config.vision_model,
@@ -459,11 +927,13 @@ class SFTService:
 
             return result_text
 
-        except Exception as e:
+        except Exception as exc:
             raise Exception(
-                f"Failed to generate image "
-                f"description: {str(e)}"
-            )
+                "Failed to generate image "
+                f"description: {exc}"
+            ) from exc
+
+    # ----- HuggingFace upload -----
 
     async def upload_to_huggingface(
         self,
@@ -471,7 +941,7 @@ class SFTService:
         repo_name: str,
         token: str,
     ) -> dict:
-        """Upload dataset to HuggingFace.
+        r"""Upload dataset to HuggingFace.
 
         Args:
             file_path (str): Path to the dataset JSON file.
@@ -512,8 +982,8 @@ class SFTService:
                 "huggingface_hub not installed. "
                 "Run: pip install huggingface_hub"
             )
-        except Exception as e:
+        except Exception as exc:
             raise Exception(
-                f"Failed to upload to HuggingFace: "
-                f"{str(e)}"
-            )
+                "Failed to upload to HuggingFace: "
+                f"{exc}"
+            ) from exc

@@ -3,7 +3,7 @@ const defaultConfig = {
   apiKey: '',
   vl_apiKey: '',
   suggestionsCount: 3,
-  model: 'glm-4-flash',
+  model: 'openai/deepseek-v3.2',
   modelOptions: [
     'glm-4-flash',
     'deepseek-chat',

@@ -11,6 +11,7 @@ import {
   Github,
   Hammer,
   FolderOpen,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 
 const navItems = [
@@ -71,6 +72,24 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Pinned Settings link at sidebar bottom */}
+      <div className="border-t border-outline-variant p-2">
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+              isActive
+                ? 'bg-primary-100 text-primary-700'
+                : 'text-on-surface/70 hover:bg-surface-variant'
+            )
+          }
+        >
+          <SettingsIcon className="w-5 h-5" />
+          Settings
+        </NavLink>
+      </div>
     </aside>
   );
 }

@@ -6,6 +6,35 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'small' | 'medium' | 'large';
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
+  loading?: boolean;
+}
+
+/**
+ * Animated spinner SVG shown when the button is loading.
+ */
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin h-4 w-4"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
+    </svg>
+  );
 }
 
 export function Button({
@@ -14,6 +43,7 @@ export function Button({
   size = 'medium',
   icon,
   iconPosition = 'left',
+  loading = false,
   className,
   disabled,
   ...props
@@ -58,13 +88,14 @@ export function Button({
   return (
     <button
       className={cn(baseStyles, variants[variant], sizes[size], className)}
-      disabled={disabled}
+      disabled={disabled || loading}
       onClick={handleClick}
       {...props}
     >
-      {icon && iconPosition === 'left' && icon}
+      {loading && <Spinner />}
+      {!loading && icon && iconPosition === 'left' && icon}
       {children}
-      {icon && iconPosition === 'right' && icon}
+      {!loading && icon && iconPosition === 'right' && icon}
     </button>
   );
 }

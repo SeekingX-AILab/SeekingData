@@ -44,7 +44,7 @@ interface AppState {
 const defaultConfig: Config = {
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
-  model: 'gpt-4o-mini',
+  model: 'openai/deepseek-v3.2',
   suggestionsCount: 3,
 };
 
